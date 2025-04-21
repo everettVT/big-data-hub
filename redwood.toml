@@ -1,0 +1,7 @@
+[web]
+  port = 8910
+
+[web.vite.server.proxy]
+  "/duckdb"  = { target = "http://duckdb:8081",  changeOrigin = true, rewrite = "^/duckdb" }
+  "/mlflow"  = { target = "http://mlflow:5000",  changeOrigin = true, rewrite = "^/mlflow" }
+  "/catalog" = { target = "http://unitycatalog:3000", changeOrigin = true, rewrite = "^/catalog" }

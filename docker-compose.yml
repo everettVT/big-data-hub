@@ -1,0 +1,59 @@
+version: "3.9"
+services:
+  # ---------- DATA & GOVERNANCE LAYER ----------
+  unitycatalog:
+    image: unitycatalog/unitycatalog:0.2.1          # OSS UC server+UI
+    container_name: unitycatalog
+    ports: [ "8080:8080", "3000:3000" ]             # 8080 = API, 3000 = UI
+    volumes:
+      - uc_data:/opt/unity/data
+    environment:
+      # swap to mysql/postgres for prod – see docs
+      - UC_DB=duckdb
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.12.2             # official image
+    container_name: mlflow
+    ports: [ "5000:5000" ]
+    volumes:
+      - mlflow_store:/mlruns
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlruns/mlflow.db
+      --default-artifact-root /mlruns
+      --host 0.0.0.0
+      --serve-artifacts
+
+  duckdb:
+    image: datacatering/duckdb:v1.2.2                # community image
+    container_name: duckdb
+    ports: [ "8081:8081" ]                           # we’ll proxy to /duckdb
+    volumes:
+      - duck_data:/data
+    entrypoint: >
+      sh -c "duckdb -init /etc/duckdb/init.sql
+             -ui -listen_host 0.0.0.0 -http_port 8081 /data/duck.db"
+
+  # ---------- REDWOOD FRONT END ----------
+  redwood:
+    build:
+      context: .
+      dockerfile: Dockerfile                         # generated earlier
+    container_name: redwood
+    ports:
+      - "8910:8910"      # web (Vite during dev)
+      - "8911:8911"      # api (Fastify in prod)
+    environment:
+      # let the app know what to proxy
+      - UC_URL=http://unitycatalog:3000
+      - MLFLOW_URL=http://mlflow:5000
+      - DUCKDB_URL=http://duckdb:8081
+    depends_on:
+      - unitycatalog
+      - mlflow
+      - duckdb
+
+volumes:
+  uc_data:
+  mlflow_store:
+  duck_data:
